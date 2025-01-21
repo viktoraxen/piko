@@ -113,12 +113,13 @@ void TextEditor::handleTextEditing(int ch)
 
         int textPosition = getInTextPosition();
         content.erase(textPosition - 1, 1);
-        moveCursorTo(getOnScreenPosition(textPosition -1 ));
+        moveCursorTo(getOnScreenPosition(textPosition - 1));
     }
     else if (ch == '\n')
     {
+        int textPosition = getInTextPosition();
         content.insert(getInTextPosition(), 1, '\n');
-        moveCursorDown();
+        moveCursorTo(getOnScreenPosition(textPosition + 1));
     }
     else 
     {
