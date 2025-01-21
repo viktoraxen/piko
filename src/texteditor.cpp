@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <sstream>
 #include <fstream>
+#include <iostream>
 
 TextEditor::TextEditor()
     : cursorX(0)
@@ -25,7 +26,13 @@ TextEditor::TextEditor(std::string filename)
 void TextEditor::run()
 {
     initscr();
+
+    initColors();
+
+    // Pressed character does not print to screen
     noecho();
+
+    // Pressed character is handled immediately, without waiting for Enter
     cbreak();
 
     getmaxyx(stdscr, height, width);
@@ -60,8 +67,8 @@ void TextEditor::draw()
 
     while (std::getline(lines, line))
     {
-        mvprintw(i, 0, std::to_string(i + scrollY + 1).c_str());
-        mvprintw(i, LINE_NUMBER_COLUMN_WIDTH, line.c_str());
+        drawText(i, 0, std::to_string(i + scrollY + 1), GREY_DEFAULT);
+        drawText(i, LINE_NUMBER_COLUMN_WIDTH, line);
         i++;
     }
 }
@@ -129,4 +136,31 @@ int TextEditor::getLineLength(int line)
 bool TextEditor::isCursorMovement(int ch)
 {
     return ch == KEY_UP || ch == KEY_DOWN || ch == KEY_LEFT || ch == KEY_RIGHT || ch == 'k' || ch == 'j' || ch == 'h' || ch == 'l';
+}
+
+void TextEditor::drawText(int y, int x, std::string text, ColorPair c)
+{
+    useColor(c);
+    mvprintw(y, x, text.c_str());
+    resetColor();
+}
+
+void TextEditor::initColors()
+{
+    start_color();
+    use_default_colors();
+
+    if (can_change_color())
+    {
+        init_color(GREY, 0, 0, 0);
+
+        init_pair(DEFAULT,      WHITE, -1);
+        init_pair(GREY_DEFAULT, GREY,  -1);
+    }
+}
+
+void TextEditor::useColor(ColorPair pair)
+{
+    currentColor = pair;
+    attron(COLOR_PAIR(currentColor));
 }
