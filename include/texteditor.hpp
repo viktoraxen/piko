@@ -3,7 +3,8 @@
 
 class TextEditor
 {
-    static const int LINE_NUMBER_COLUMN_WIDTH = 4;
+    const int LINE_NUMBER_COLUMN_WIDTH = 4;
+
     enum Color
     {
         BLACK   = COLOR_BLACK,
@@ -21,6 +22,7 @@ class TextEditor
     {
         DEFAULT = 1,
         GREY_DEFAULT,
+        RED_DEFAULT,
     };
 
 public:
@@ -35,12 +37,22 @@ private:
     ColorPair currentColor;
     std::string content;
 
+    void draw();
+
     void handleInput(int ch);
     void handleCursorMovement(int ch);
-    void draw();
+    void handleTextEditing(int ch);
+    void moveCursorUp();
+    void moveCursorDown();
+    void moveCursorRight();
+    void moveCursorLeft();
+    void moveCursorTo(int y, int x);
+    void moveCursorTo(std::pair<int, int> position) { moveCursorTo(position.first, position.second); };
 
     int getNumLines();
     int getLineLength(int line);
+    int getInTextPosition();
+    std::pair<int, int> getOnScreenPosition(int inTextPosition);
 
     bool isCursorMovement(int ch);
 
