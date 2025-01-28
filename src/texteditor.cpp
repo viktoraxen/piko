@@ -1,4 +1,5 @@
 #include <ncurses.h>
+#include <string>
 #include <texteditor.hpp>
 #include <algorithm>
 #include <sstream>
@@ -6,9 +7,9 @@
 #include <iostream>
 
 TextEditor::TextEditor()
-    : cursorX(LINE_NUMBER_COLUMN_WIDTH)
-    , targetX(LINE_NUMBER_COLUMN_WIDTH)
-    , cursorY(0)
+    : cursorColumn(1)
+    , targetColumn(1)
+    , cursorLine(1)
     , scrollX(0)
     , scrollY(0)
     , content("")
@@ -42,7 +43,7 @@ void TextEditor::run()
     while (true)
     {
         draw();
-        move(cursorY, cursorX);
+        move(cursorLine - scrollY - 1, cursorColumn + LINE_NUMBER_COLUMN_WIDTH - scrollX - 1);
 
         int ch = getch();
         clear();
@@ -61,18 +62,21 @@ void TextEditor::draw()
     std::istringstream lines(content);
     std::string line;
 
-    int i = 0;
+    for (int i = 0; i < scrollY; i++)
+        std::getline(lines, line);
 
-    while (i++ < scrollY && std::getline(lines, line));
-
-    i = 0;
-
-    while (std::getline(lines, line))
+    for (int i = 0; i < getNumLines() - scrollY; i++)
     {
-        drawText(i, 0, std::to_string(i + scrollY + 1), i == cursorY ? RED_DEFAULT : GREY_DEFAULT);
+        int lineNum = i + scrollY + 1;
+        std::getline(lines, line);
+
+        drawText(i, 0, std::to_string(lineNum), lineNum == cursorLine ? RED_DEFAULT : GREY_DEFAULT);
         drawText(i, LINE_NUMBER_COLUMN_WIDTH, line);
-        i++;
     }
+
+    std::string position = std::to_string(cursorLine) + ":" + std::to_string(cursorColumn);
+    position += "(" + std::to_string(targetColumn) + ")";
+    drawText(height - 1, width - 10, position, RED_DEFAULT);
 }
 
 void TextEditor::handleInput(int ch)
@@ -82,7 +86,7 @@ void TextEditor::handleInput(int ch)
     else
         handleTextEditing(ch);
 
-    cursorX = std::min(getLineLength(scrollY + cursorY + 1) + LINE_NUMBER_COLUMN_WIDTH, targetX);
+    cursorColumn = std::min(getLineLength(cursorLine) + 1, targetColumn);
 }
 
 void TextEditor::handleCursorMovement(int ch)
@@ -106,61 +110,61 @@ void TextEditor::handleCursorMovement(int ch)
 
 void TextEditor::handleTextEditing(int ch)
 {
+    int stringPosition = getStringPosition(cursorLine, cursorColumn);
+
     if (ch == KEY_BACKSPACE)
     {
-        if (getInTextPosition() == 0)
+        if (stringPosition == 0)
             return;
 
-        int textPosition = getInTextPosition();
-        content.erase(textPosition - 1, 1);
-        moveCursorTo(getOnScreenPosition(textPosition - 1));
-    }
-    else if (ch == '\n')
-    {
-        int textPosition = getInTextPosition();
-        content.insert(getInTextPosition(), 1, '\n');
-        moveCursorTo(getOnScreenPosition(textPosition + 1));
+        content.erase(stringPosition - 1, 1);
+        moveCursorTo(getGridPosition(stringPosition - 1));
     }
     else 
     {
-        content.insert(getInTextPosition(), 1, ch);
-        moveCursorRight();
+        content.insert(stringPosition, 1, ch);
+        moveCursorTo(getGridPosition(stringPosition + 1));
     }
 }
 
 void TextEditor::moveCursorUp()
 {
-    if (cursorY == 0)
+    if (cursorLine == scrollY + 1)
         scrollY = std::max(0, scrollY - 1);
-    else
-        cursorY = std::max(0, cursorY - 1);
+
+    cursorLine = std::max(1, cursorLine - 1);
 }
 
 void TextEditor::moveCursorDown()
 {
-    if (scrollY + cursorY == getNumLines() - 1)
+    if (cursorLine == getNumLines())
         return;
 
-    if (cursorY == height - 1)
+    if (cursorLine == scrollY + height)
         scrollY = std::min(getNumLines() - 1, scrollY + 1);
-    else
-        cursorY = std::min(height - 1, cursorY + 1);
+
+    cursorLine = std::min(getNumLines(), cursorLine + 1);
 }
 
 void TextEditor::moveCursorRight()
 {
-    targetX = std::min(getLineLength(scrollY + cursorY + 1) + LINE_NUMBER_COLUMN_WIDTH, cursorX + 1);
+    targetColumn = std::min(getLineLength(cursorLine) + 1, cursorColumn + 1);
 }
 
 void TextEditor::moveCursorLeft()
 {
-    targetX = std::max(LINE_NUMBER_COLUMN_WIDTH, cursorX - 1);
+    targetColumn = std::max(1, cursorColumn - 1);
 }
 
-void TextEditor::moveCursorTo(int y, int x)
+void TextEditor::moveCursorTo(int line, int column)
 {
-    targetX = x;
-    cursorY = y;
+    if (line <= scrollY)
+        scrollY = line - 1;
+    else if (line > scrollY + height)
+        scrollY = line - height;
+
+    targetColumn = column;
+    cursorLine = line;
 }
 
 int TextEditor::getNumLines()
@@ -186,41 +190,39 @@ int TextEditor::getLineLength(int line)
     return l.length();
 }
 
-int TextEditor::getInTextPosition()
+int TextEditor::getStringPosition(int line, int column)
 {
     std::istringstream lines(content);
-    std::string line;
-    int i = 0;
+    std::string currentLine;
+    int i = 1;
     int pos = 0;
 
-    while (i++ < scrollY + cursorY && std::getline(lines, line))
-        pos += line.length() + 1;
+    while (i++ < line && std::getline(lines, currentLine))
+        // +1 to account for \n character
+        pos += currentLine.length() + 1;
 
-    return pos + cursorX - LINE_NUMBER_COLUMN_WIDTH;
+    // -1 to account for column indexing starting at 1, and string indexing at 0
+    return pos + column - 1;
 }
 
-std::pair<int, int> TextEditor::getOnScreenPosition(int inTextPosition)
+std::pair<int, int> TextEditor::getGridPosition(int stringPosition)
 {
     std::istringstream lines(content);
     std::string line;
+    int maxLines = getNumLines();
 
-    int y = 0;
-
-    while (y++ < scrollY && std::getline(lines, line))
-        inTextPosition -= line.length() + 1;
-
-    y = 0;
-
-    while (std::getline(lines, line))
+    for (int lineNum = 1; lineNum < maxLines; lineNum++)
     {
-        if (inTextPosition < line.length() + 1)
-            return {y, inTextPosition + LINE_NUMBER_COLUMN_WIDTH};
+        std::getline(lines, line);
 
-        inTextPosition -= line.length() + 1;
-        y++;
+        if (stringPosition <= line.length())
+            return {lineNum, stringPosition + 1};
+
+        stringPosition -= line.length() + 1;
     }
 
-    return {y, LINE_NUMBER_COLUMN_WIDTH};
+    // Places cursor at the end of previously last line
+    return {maxLines, stringPosition + 1};
 }
 
 bool TextEditor::isCursorMovement(int ch)

@@ -32,7 +32,8 @@ public:
 
 private:
     int width, height;
-    int cursorX, targetX, cursorY;
+    int cursorLine, cursorColumn, targetColumn;
+    // scrollY/X is number of lines/columns not visible on the screen
     int scrollX, scrollY;
     ColorPair currentColor;
     std::string content;
@@ -51,8 +52,8 @@ private:
 
     int getNumLines();
     int getLineLength(int line);
-    int getInTextPosition();
-    std::pair<int, int> getOnScreenPosition(int inTextPosition);
+    int getStringPosition(int line, int column);
+    std::pair<int, int> getGridPosition(int stringPosition);
 
     bool isCursorMovement(int ch);
 
