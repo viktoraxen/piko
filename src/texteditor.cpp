@@ -110,21 +110,12 @@ void TextEditor::handleCursorMovement(int ch)
 
 void TextEditor::handleTextEditing(int ch)
 {
-    int stringPosition = getStringPosition(cursorLine, cursorColumn);
-
     if (ch == KEY_BACKSPACE)
-    {
-        if (stringPosition == 0)
-            return;
-
-        content.erase(stringPosition - 1, 1);
-        moveCursorTo(getGridPosition(stringPosition - 1));
-    }
+        deleteCharLeft(cursorLine, cursorColumn);
+    else if (ch == KEY_DC)
+        deleteCharRight(cursorLine, cursorColumn);
     else 
-    {
-        content.insert(stringPosition, 1, ch);
-        moveCursorTo(getGridPosition(stringPosition + 1));
-    }
+        insertChar(cursorLine, cursorColumn, ch);
 }
 
 void TextEditor::moveCursorUp()
@@ -165,6 +156,31 @@ void TextEditor::moveCursorTo(int line, int column)
 
     targetColumn = column;
     cursorLine = line;
+}
+
+void TextEditor::deleteCharLeft(int line, int column)
+{
+    int stringPosition = getStringPosition(line, column);
+
+    if (stringPosition == 0)
+        return;
+
+    content.erase(stringPosition - 1, 1);
+
+    moveCursorTo(getGridPosition(stringPosition - 1));
+}
+
+void TextEditor::deleteCharRight(int line, int column)
+{
+    content.erase(getStringPosition(line, column), 1);
+}
+
+void TextEditor::insertChar(int line, int column, char ch)
+{
+    int stringPosition = getStringPosition(line, column);
+    content.insert(stringPosition, 1, ch);
+
+    moveCursorTo(getGridPosition(stringPosition + 1));
 }
 
 int TextEditor::getNumLines()

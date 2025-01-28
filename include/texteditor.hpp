@@ -50,6 +50,10 @@ private:
     void moveCursorTo(int y, int x);
     void moveCursorTo(std::pair<int, int> position) { moveCursorTo(position.first, position.second); };
 
+    void deleteCharLeft(int line, int column);
+    void deleteCharRight(int line, int column);
+    void insertChar(int line, int column, char ch);
+
     int getNumLines();
     int getLineLength(int line);
     int getStringPosition(int line, int column);
