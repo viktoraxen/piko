@@ -1,10 +1,15 @@
-#include <functional>
-#include <ncurses.h>
 #include <texteditor.hpp>
+
+#include <locale.h>
+#include <ncurses.h>
+#include <wchar.h>
+
 #include <algorithm>
-#include <sstream>
+#include <codecvt>
 #include <fstream>
+#include <functional>
 #include <iostream>
+#include <sstream>
 
 TextEditor::TextEditor()
     : m_cursorColumn(1)
@@ -26,6 +31,7 @@ TextEditor::TextEditor(std::string filename)
 
 void TextEditor::run()
 {
+    setlocale(LC_ALL, "");
     initscr();
 
     initColors();
@@ -42,6 +48,7 @@ void TextEditor::run()
     getmaxyx(stdscr, m_height, m_width);
 
     initDebug();
+    wint_t ch;
 
     while (true)
     {
@@ -49,7 +56,15 @@ void TextEditor::run()
         displayCursor();
         drawDebug();
 
-        int ch = getch();
+        int res = wget_wch(stdscr, &ch);
+
+
+        if (res == ERR)
+        {
+            printDebug("Error reading key");
+            continue;
+        }
+
         wclear(stdscr);
 
         if (ch == 'q')
@@ -74,7 +89,7 @@ void TextEditor::draw()
         int lineNum = i + m_scrollY + 1;
         std::getline(lines, line);
 
-        drawText(i, 0, std::to_string(lineNum), lineNum == m_cursorLine ? RED_DEFAULT : GREY_DEFAULT);
+        drawText(i, 0, std::to_string(lineNum) + "♖", lineNum == m_cursorLine ? RED_DEFAULT : GREY_DEFAULT);
         drawText(i, LINE_NUMBER_COLUMN_WIDTH, line);
     }
 
@@ -204,7 +219,7 @@ void TextEditor::deleteWordRight()
         deleteCharRight();
 }
 
-void TextEditor::insertChar(char ch)
+void TextEditor::insertChar(wchar_t ch)
 {
     int stringPosition = getStringPosition(m_cursorLine, m_cursorColumn);
 
@@ -213,10 +228,14 @@ void TextEditor::insertChar(char ch)
 
     m_content.insert(stringPosition, 1, ch);
 
-    moveCursorTo(getGridPosition(stringPosition + 1));
+    int charWidth = getCharWidth(ch);
+
+    printDebug("Char width: " + std::to_string(charWidth));
+
+    moveCursorTo(getGridPosition(stringPosition + charWidth));
 }
 
-char TextEditor::getCharLeft() const
+wchar_t TextEditor::getCharLeft() const
 {
     int stringPosition = getStringPosition(m_cursorLine, m_cursorColumn);
 
@@ -226,7 +245,7 @@ char TextEditor::getCharLeft() const
     return m_content.at(stringPosition - 1);
 }
 
-char TextEditor::getCharRight() const
+wchar_t TextEditor::getCharRight() const
 {
     int stringPosition = getStringPosition(m_cursorLine, m_cursorColumn);
 
@@ -236,9 +255,17 @@ char TextEditor::getCharRight() const
     return m_content.at(stringPosition);
 }
 
-bool TextEditor::charIsWordDelimiter(char ch) const
+bool TextEditor::charIsWordDelimiter(wchar_t ch) const
 {
     return ch == ' ' || ch == '\n' || ch == '\t' || ch == '\0';
+}
+
+int TextEditor::getCharWidth(wchar_t ch) const
+{
+    if (ch == '\n')
+        return 1;
+
+    return wcwidth(ch);
 }
 
 int TextEditor::getNumLines() const
@@ -322,7 +349,10 @@ bool TextEditor::isCursorMovement(int ch) const
 void TextEditor::drawText(int y, int x, std::string text, ColorPair c)
 {
     useColor(c);
-    mvprintw(y, x, text.c_str());
+
+    std::wstring wtext(text.begin(), text.end());  // Convert narrow to wide
+
+    mvaddwstr(y, x, wtext.c_str());
     resetColor();
 }
 
@@ -355,7 +385,6 @@ void TextEditor::initColors()
         init_pair(DEFAULT,      WHITE, -1);
         init_pair(GREY_DEFAULT, GREY,  -1);
         init_pair(RED_DEFAULT,  RED,   -1);
-
     }
 }
 

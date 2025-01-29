@@ -64,12 +64,13 @@ private:
     void deleteWordLeft();
     void deleteWordRight();
 
-    void insertChar(char ch);
+    void insertChar(wchar_t ch);
 
-    char getCharLeft() const;
-    char getCharRight() const;
+    wchar_t getCharLeft() const;
+    wchar_t getCharRight() const;
 
-    bool charIsWordDelimiter(char ch) const;
+    bool charIsWordDelimiter(wchar_t ch) const;
+    int getCharWidth(wchar_t ch) const;
 
     int getNumLines() const;
     int getLineLength(int line) const;

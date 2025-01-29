@@ -9,7 +9,7 @@ set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
 add_executable(Text src/main.cpp src/texteditor.cpp)
 target_include_directories(Text PRIVATE ${CMAKE_SOURCE_DIR}/include)
-target_link_libraries(Text PRIVATE ncurses)
+target_link_libraries(Text PRIVATE ncursesw)
 
 # Source and destination directories
 set(RESOURCE_SOURCE_DIR ${CMAKE_SOURCE_DIR}/res)
