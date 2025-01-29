@@ -1,6 +1,8 @@
 #include <ncurses.h>
 #include <string>
 
+using Position = std::pair<int, int>;
+
 class TextEditor
 {
     const int LINE_NUMBER_COLUMN_WIDTH = 4;
@@ -46,22 +48,42 @@ private:
     void moveCursorUp();
     void moveCursorDown();
     void moveCursorRight();
+    void moveCursorRightInString();
     void moveCursorLeft();
+    void moveCursorLeftInString();
     void moveCursorTo(int y, int x);
-    void moveCursorTo(std::pair<int, int> position) { moveCursorTo(position.first, position.second); };
+    void moveCursorTo(Position position) { moveCursorTo(position.first, position.second); };
+    void moveToTargetColumn();
+    void displayCursor() const;
 
-    void deleteCharLeft(int line, int column);
-    void deleteCharRight(int line, int column);
-    void insertChar(int line, int column, char ch);
+    void deleteCharLeft();
+    void deleteCharRight();
+    void deleteWordLeft();
+    void deleteWordRight();
 
-    int getNumLines();
-    int getLineLength(int line);
-    int getStringPosition(int line, int column);
-    std::pair<int, int> getGridPosition(int stringPosition);
+    void insertChar(char ch);
 
-    bool isCursorMovement(int ch);
+    char getCharLeft() const;
+    char getCharRight() const;
 
-    void drawText(int y, int x, std::string text, ColorPair c = DEFAULT);
+    bool charIsWordDelimiter(char ch) const;
+
+    int getNumLines() const;
+    int getLineLength(int line) const;
+
+    int getStringPosition(int line, int column) const;
+
+    Position getGridPosition(int stringPosition) const;
+    Position getPreviousGridPosition(int line, int column) const;
+    Position getNextGridPosition(int line, int column) const;
+
+    Position getOnScreenPosition(int line, int column) const;
+    Position getOnScreenPosition(Position position) const { return getOnScreenPosition(position.first, position.second); };
+
+    bool isCursorMovement(int ch) const;
+
+    void drawText(int line, int column, std::string text, ColorPair c = DEFAULT);
+    void drawText(Position position, std::string text, ColorPair c = DEFAULT) { drawText(position.first, position.second, text, c); };
 
     void initColors();
     void useColor(ColorPair pair);

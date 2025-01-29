@@ -43,7 +43,7 @@ void TextEditor::run()
     while (true)
     {
         draw();
-        move(cursorLine - scrollY - 1, cursorColumn + LINE_NUMBER_COLUMN_WIDTH - scrollX - 1);
+        displayCursor();
 
         int ch = getch();
         clear();
@@ -85,8 +85,6 @@ void TextEditor::handleInput(int ch)
         handleCursorMovement(ch);
     else
         handleTextEditing(ch);
-
-    cursorColumn = std::min(getLineLength(cursorLine) + 1, targetColumn);
 }
 
 void TextEditor::handleCursorMovement(int ch)
@@ -110,12 +108,23 @@ void TextEditor::handleCursorMovement(int ch)
 
 void TextEditor::handleTextEditing(int ch)
 {
-    if (ch == KEY_BACKSPACE)
-        deleteCharLeft(cursorLine, cursorColumn);
-    else if (ch == KEY_DC)
-        deleteCharRight(cursorLine, cursorColumn);
-    else 
-        insertChar(cursorLine, cursorColumn, ch);
+    switch (ch)
+    {
+        case KEY_BACKSPACE:
+            deleteCharLeft();
+            break;
+        case KEY_DC:
+            deleteCharRight();
+            break;
+        case '\'':
+            deleteWordLeft();
+            break;
+        case '*':
+            deleteWordRight();
+            break;
+        default:
+            insertChar(ch);
+    }
 }
 
 void TextEditor::moveCursorUp()
@@ -124,6 +133,8 @@ void TextEditor::moveCursorUp()
         scrollY = std::max(0, scrollY - 1);
 
     cursorLine = std::max(1, cursorLine - 1);
+
+    moveToTargetColumn();
 }
 
 void TextEditor::moveCursorDown()
@@ -135,16 +146,30 @@ void TextEditor::moveCursorDown()
         scrollY = std::min(getNumLines() - 1, scrollY + 1);
 
     cursorLine = std::min(getNumLines(), cursorLine + 1);
+
+    moveToTargetColumn();
 }
 
 void TextEditor::moveCursorRight()
 {
     targetColumn = std::min(getLineLength(cursorLine) + 1, cursorColumn + 1);
+    moveToTargetColumn();
+}
+
+void TextEditor::moveCursorRightInString()
+{
+    moveCursorTo(getNextGridPosition(cursorLine, cursorColumn));
 }
 
 void TextEditor::moveCursorLeft()
 {
     targetColumn = std::max(1, cursorColumn - 1);
+    moveToTargetColumn();
+}
+
+void TextEditor::moveCursorLeftInString()
+{
+    moveCursorTo(getPreviousGridPosition(cursorLine, cursorColumn));
 }
 
 void TextEditor::moveCursorTo(int line, int column)
@@ -156,34 +181,93 @@ void TextEditor::moveCursorTo(int line, int column)
 
     targetColumn = column;
     cursorLine = line;
+    moveToTargetColumn();
 }
 
-void TextEditor::deleteCharLeft(int line, int column)
+void TextEditor::moveToTargetColumn()
 {
-    int stringPosition = getStringPosition(line, column);
+    cursorColumn = std::min(getLineLength(cursorLine) + 1, targetColumn);
+}
 
-    if (stringPosition == 0)
+void TextEditor::displayCursor() const
+{
+    Position cursorPosition = getOnScreenPosition(cursorLine, cursorColumn);
+    move(cursorPosition.first, cursorPosition.second);
+}
+
+void TextEditor::deleteCharLeft()
+{
+    int stringPosition = getStringPosition(cursorLine, cursorColumn);
+
+    if (stringPosition == 0 || stringPosition > content.length())
         return;
 
+    moveCursorLeftInString();
     content.erase(stringPosition - 1, 1);
-
-    moveCursorTo(getGridPosition(stringPosition - 1));
 }
 
-void TextEditor::deleteCharRight(int line, int column)
+void TextEditor::deleteWordLeft()
 {
-    content.erase(getStringPosition(line, column), 1);
+    if (charIsWordDelimiter(getCharLeft()))
+        deleteCharLeft();
+
+    while (!charIsWordDelimiter(getCharLeft()))
+        deleteCharLeft();
 }
 
-void TextEditor::insertChar(int line, int column, char ch)
+void TextEditor::deleteCharRight()
 {
-    int stringPosition = getStringPosition(line, column);
+    int stringPosition = getStringPosition(cursorLine, cursorColumn);
+
+    if (stringPosition < 0 || stringPosition >= content.length())
+        return;
+
+    content.erase(stringPosition, 1);
+}
+
+void TextEditor::deleteWordRight()
+{
+    if (charIsWordDelimiter(getCharRight()))
+        deleteCharRight();
+
+    while (!charIsWordDelimiter(getCharRight()))
+        deleteCharRight();
+}
+
+void TextEditor::insertChar(char ch)
+{
+    int stringPosition = getStringPosition(cursorLine, cursorColumn);
     content.insert(stringPosition, 1, ch);
 
     moveCursorTo(getGridPosition(stringPosition + 1));
 }
 
-int TextEditor::getNumLines()
+char TextEditor::getCharLeft() const
+{
+    int stringPosition = getStringPosition(cursorLine, cursorColumn);
+
+    if (stringPosition < 0 || stringPosition >= content.length())
+        return '\0';
+
+    return content.at(stringPosition - 1);
+}
+
+char TextEditor::getCharRight() const
+{
+    int stringPosition = getStringPosition(cursorLine, cursorColumn);
+
+    if (stringPosition < 0 || stringPosition >= content.length())
+        return '\0';
+
+    return content.at(stringPosition);
+}
+
+bool TextEditor::charIsWordDelimiter(char ch) const
+{
+    return ch == ' ' || ch == '\n' || ch == '\t' || ch == '\0';
+}
+
+int TextEditor::getNumLines() const
 {
     std::istringstream lines(content);
     std::string line;
@@ -195,7 +279,7 @@ int TextEditor::getNumLines()
     return numLines;
 }
 
-int TextEditor::getLineLength(int line)
+int TextEditor::getLineLength(int line) const
 {
     std::istringstream lines(content);
     std::string l;
@@ -206,7 +290,7 @@ int TextEditor::getLineLength(int line)
     return l.length();
 }
 
-int TextEditor::getStringPosition(int line, int column)
+int TextEditor::getStringPosition(int line, int column) const
 {
     std::istringstream lines(content);
     std::string currentLine;
@@ -221,7 +305,7 @@ int TextEditor::getStringPosition(int line, int column)
     return pos + column - 1;
 }
 
-std::pair<int, int> TextEditor::getGridPosition(int stringPosition)
+Position TextEditor::getGridPosition(int stringPosition) const
 {
     std::istringstream lines(content);
     std::string line;
@@ -241,7 +325,22 @@ std::pair<int, int> TextEditor::getGridPosition(int stringPosition)
     return {maxLines, stringPosition + 1};
 }
 
-bool TextEditor::isCursorMovement(int ch)
+Position TextEditor::getPreviousGridPosition(int line, int column) const
+{
+    return getGridPosition(getStringPosition(line, column) - 1);
+}
+
+Position TextEditor::getNextGridPosition(int line, int column) const
+{
+    return getGridPosition(getStringPosition(line, column) + 1);
+}
+
+Position TextEditor::getOnScreenPosition(int line, int column) const
+{
+    return {line - scrollY - 1, column + LINE_NUMBER_COLUMN_WIDTH - scrollX - 1};
+}
+
+bool TextEditor::isCursorMovement(int ch) const
 {
     return ch == KEY_UP || ch == KEY_DOWN || ch == KEY_LEFT || ch == KEY_RIGHT;
 }
