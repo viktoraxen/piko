@@ -54,7 +54,6 @@ private:
 
     void draw();
 
-    void handleInput(int ch);
     void handleCursorMovement(int ch);
     void handleTextEditing(int ch);
     void moveCursorUp();
