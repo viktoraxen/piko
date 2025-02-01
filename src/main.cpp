@@ -1,9 +1,20 @@
 #include <texteditor.hpp>
+#include <string>
+#include <iostream>
 
-int main()
+int main(int argc, char **argv)
 {
-    TextEditor editor("res/example_text.txt");
-    editor.run();
+    if (argc > 1)
+    {
+        std::string filename = argv[1];
+
+        TextEditor editor(filename);
+        editor.run();
+
+        return 0;
+    }
+
+    std::cerr << "Usage: " << argv[0] << " <filename>" << std::endl;
 
     return 0;
 }

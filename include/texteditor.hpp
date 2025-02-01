@@ -1,7 +1,11 @@
+#pragma once
+
+#include "keyhandler.hpp"
+
 #include <ncurses.h>
 #include <string>
-#include <map>
-#include <functional>
+
+#define DEBUG
 
 using Position = std::pair<int, int>;
 
@@ -24,9 +28,10 @@ class TextEditor
 
     enum ColorPair
     {
-        DEFAULT = 1,
+        DEFAULT,
         GREY_DEFAULT,
         RED_DEFAULT,
+        GREEN_DEFAULT,
     };
     
 public:
@@ -40,8 +45,12 @@ private:
     // scrollY/X is number of lines/columns not visible on the screen
     int m_scrollX, m_scrollY;
     ColorPair m_currentColor;
+    std::string m_filename;
     std::string m_content;
-    std::map<int, std::function<void()>> m_keyBindings;
+    KeyHandler m_keyHandler;
+    std::string m_msg;
+
+    void write();
 
     void draw();
 
@@ -103,5 +112,5 @@ private:
 
     void initDebug();
     void drawDebug();
-    void printDebug(std::string str);
+    void debug(std::string str);
 };

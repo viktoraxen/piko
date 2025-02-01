@@ -7,7 +7,7 @@ set(CMAKE_CXX_STANDARD_REQUIRED ON)
 
 set(CMAKE_EXPORT_COMPILE_COMMANDS ON)
 
-add_executable(Text src/main.cpp src/texteditor.cpp)
+add_executable(Text src/main.cpp src/texteditor.cpp src/keyhandler.cpp)
 target_include_directories(Text PRIVATE ${CMAKE_SOURCE_DIR}/include)
 target_link_libraries(Text PRIVATE ncursesw)
 

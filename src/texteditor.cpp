@@ -1,3 +1,4 @@
+#include "keyhandler.hpp"
 #include <texteditor.hpp>
 
 #include <locale.h>
@@ -5,11 +6,12 @@
 #include <wchar.h>
 
 #include <algorithm>
-#include <codecvt>
 #include <fstream>
 #include <functional>
 #include <iostream>
 #include <sstream>
+
+#define ctrl(x) ((x) & 0x1f)
 
 TextEditor::TextEditor()
     : m_cursorColumn(1)
@@ -17,12 +19,16 @@ TextEditor::TextEditor()
     , m_cursorLine(1)
     , m_scrollX(0)
     , m_scrollY(0)
+    , m_filename("")
     , m_content("")
+    , m_keyHandler()
 {}
 
 TextEditor::TextEditor(std::string filename)
     : TextEditor()
 {
+    m_filename = filename;
+
     std::ifstream t(filename);
     std::stringstream buffer;
     buffer << t.rdbuf();
@@ -48,7 +54,8 @@ void TextEditor::run()
     getmaxyx(stdscr, m_height, m_width);
 
     initDebug();
-    wint_t ch;
+
+    Key ch;
 
     while (true)
     {
@@ -56,24 +63,26 @@ void TextEditor::run()
         displayCursor();
         drawDebug();
 
-        int res = wget_wch(stdscr, &ch);
+        int err = wget_wch(stdscr, &ch);
 
-
-        if (res == ERR)
-        {
-            printDebug("Error reading key");
-            continue;
-        }
+        // 27: ESCAPE
+        if (ch == 27)
+            break;
 
         wclear(stdscr);
 
-        if (ch == 'q')
-            break;
-
-        handleInput(ch);
+        m_keyHandler.handleKey(ch);
     }
 
     endwin();
+}
+
+void TextEditor::write()
+{
+    std::ofstream file(m_filename);
+    file << m_content;
+
+    m_msg = "File written to '" + m_filename + "'";
 }
 
 void TextEditor::draw()
@@ -89,7 +98,7 @@ void TextEditor::draw()
         int lineNum = i + m_scrollY + 1;
         std::getline(lines, line);
 
-        drawText(i, 0, std::to_string(lineNum) + "♖", lineNum == m_cursorLine ? RED_DEFAULT : GREY_DEFAULT);
+        drawText(i, 0, std::to_string(lineNum), lineNum == m_cursorLine ? RED_DEFAULT : GREY_DEFAULT);
         drawText(i, LINE_NUMBER_COLUMN_WIDTH, line);
     }
 
@@ -97,19 +106,18 @@ void TextEditor::draw()
     position += "(" + std::to_string(m_targetColumn) + ")";
     drawText(m_height - 1, m_width - 10, position, RED_DEFAULT);
 
+    if (!m_msg.empty())
+    {
+        drawText(m_height - 1, 1, m_msg, GREEN_DEFAULT);
+        m_msg = "";
+    }
+
     refresh();
 }
 
 void TextEditor::handleInput(int ch)
 {
-    printDebug("Key pressed: " + std::to_string(ch));
-
-    auto it = m_keyBindings.find(ch);
-
-    if (it != m_keyBindings.end())
-        it->second();
-    else
-        insertChar(ch);
+    // m_keyHandler.handle(ch);
 }
 
 void TextEditor::moveCursorUp()
@@ -193,6 +201,8 @@ void TextEditor::deleteCharLeft()
 
 void TextEditor::deleteWordLeft()
 {
+    debug("Delete word left");
+
     if (charIsWordDelimiter(getCharLeft()))
         deleteCharLeft();
 
@@ -230,7 +240,7 @@ void TextEditor::insertChar(wchar_t ch)
 
     int charWidth = getCharWidth(ch);
 
-    printDebug("Char width: " + std::to_string(charWidth));
+    debug("Char width: " + std::to_string(charWidth));
 
     moveCursorTo(getGridPosition(stringPosition + charWidth));
 }
@@ -358,19 +368,34 @@ void TextEditor::drawText(int y, int x, std::string text, ColorPair c)
 
 void TextEditor::initKeyBindings()
 {
-    bindKey(KEY_UP,        &TextEditor::moveCursorUp);
-    bindKey(KEY_DOWN,      &TextEditor::moveCursorDown);
-    bindKey(KEY_LEFT,      &TextEditor::moveCursorLeft);
-    bindKey(KEY_RIGHT,     &TextEditor::moveCursorRight);
+    bindKey(KEY_LEFT,  &TextEditor::moveCursorLeft);
+    bindKey(KEY_DOWN,  &TextEditor::moveCursorDown);
+    bindKey(KEY_UP,    &TextEditor::moveCursorUp);
+    bindKey(KEY_RIGHT, &TextEditor::moveCursorRight);
+
+    bindKey(ctrl('h'), &TextEditor::moveCursorLeft);
+    bindKey(ctrl('j'), &TextEditor::moveCursorDown);
+    bindKey(ctrl('k'), &TextEditor::moveCursorUp);
+    bindKey(ctrl('j'), &TextEditor::moveCursorRight);
+
     bindKey(KEY_BACKSPACE, &TextEditor::deleteCharLeft);
     bindKey(KEY_DC,        &TextEditor::deleteCharRight);
-    bindKey('\'',          &TextEditor::deleteWordLeft);
-    bindKey('*',           &TextEditor::deleteWordRight);
+
+    bindKey(KEY_C_BACKSPACE, &TextEditor::deleteWordLeft);
+    bindKey(KEY_C_DC,        &TextEditor::deleteWordRight);
+
+    bindKey(KEY_C_W, &TextEditor::write);
+
+    // Printable range
+    for (int i = 32; i < 127; i++)
+        m_keyHandler.bindKey(static_cast<char>(i), [this, i]() { this->insertChar(i); });
+
+    m_keyHandler.bindKey(10, [this]() { this->insertChar('\n'); });
 }
 
 void TextEditor::bindKey(int key, void(TextEditor::*action)())
 {
-    m_keyBindings[key] = [this, action]() { (this->*action)(); };
+    m_keyHandler.bindKey(key, [this, action]() { (this->*action)(); });
 }
 
 void TextEditor::initColors()
@@ -382,9 +407,10 @@ void TextEditor::initColors()
     {
         init_color(GREY, 0, 0, 0);
 
-        init_pair(DEFAULT,      WHITE, -1);
-        init_pair(GREY_DEFAULT, GREY,  -1);
-        init_pair(RED_DEFAULT,  RED,   -1);
+        init_pair(DEFAULT,       WHITE, -1);
+        init_pair(GREY_DEFAULT,  GREY,  -1);
+        init_pair(GREEN_DEFAULT, GREEN, -1);
+        init_pair(RED_DEFAULT,   RED,   -1);
     }
 }
 
@@ -396,6 +422,7 @@ void TextEditor::useColor(ColorPair pair)
 
 void TextEditor::initDebug()
 {
+#ifdef DEBUG
     m_debugHeight = m_height / 2;
     m_debugWidth = m_width / 2;
 
@@ -407,10 +434,14 @@ void TextEditor::initDebug()
         std::cerr << "Error creating debug window" << std::endl;
         exit(1);
     }
+
+    m_keyHandler.setDebugPrintCallback([this](std::string msg) { this->debug(msg); });
+#endif
 }
 
 void TextEditor::drawDebug()
 {
+#ifdef DEBUG
     wclear(m_debugWindow);
     box(m_debugWindow, 0, 0);
 
@@ -428,9 +459,12 @@ void TextEditor::drawDebug()
     }
 
     wrefresh(m_debugWindow);
+#endif
 }
 
-void TextEditor::printDebug(std::string str)
+void TextEditor::debug(std::string str)
 {
+#ifdef DEBUG
     m_debugLines.insert(m_debugLines.begin(), str);
+#endif
 }
