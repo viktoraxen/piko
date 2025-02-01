@@ -5,7 +5,7 @@
 #include <ncurses.h>
 #include <string>
 
-#define DEBUG
+// #define DEBUG
 
 using Position = std::pair<int, int>;
 
